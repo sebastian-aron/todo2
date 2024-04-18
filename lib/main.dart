@@ -33,7 +33,8 @@ class Todo extends HiveObject {
   @HiveField(6)
   DateTime? endTime; // Added endTime field
 
-  Todo(this.title, {
+  Todo(
+    this.title, {
     this.isDone = false,
     this.dueDateTime,
     this.content = '',
@@ -58,8 +59,12 @@ class TodoAdapter extends TypeAdapter<Todo> {
     }
     final content = reader.readString();
     final isUrgent = reader.readBool();
-    DateTime? startTime = reader.readBool() ? DateTime.fromMillisecondsSinceEpoch(reader.readInt()) : null; // Added reading startTime
-    DateTime? endTime = reader.readBool() ? DateTime.fromMillisecondsSinceEpoch(reader.readInt()) : null; // Added reading endTime
+    DateTime? startTime = reader.readBool()
+        ? DateTime.fromMillisecondsSinceEpoch(reader.readInt())
+        : null; // Added reading startTime
+    DateTime? endTime = reader.readBool()
+        ? DateTime.fromMillisecondsSinceEpoch(reader.readInt())
+        : null; // Added reading endTime
 
     return Todo(
       title,
@@ -178,7 +183,7 @@ class TodoListScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Image.network(
-                      'https://media.tenor.com/pFz1Q12_hXEAAAAM/cat-holding-head-cat.gif',
+                      'https://media.tenor.com/gjTjxUCoP3sAAAAj/jumping-gatito.gif',
                       width: 200,
                       height: 200,
                     ),
@@ -213,15 +218,16 @@ class TodoListScreen extends StatelessWidget {
                         onChanged: todo.isDone
                             ? null
                             : (value) async {
-                          if (value == true) {
-                            // Show confirmation dialog before marking as done
-                            bool confirm = await _showConfirmationDialog(context);
-                            if (confirm) {
-                              todo.isDone = value!;
-                              todo.save();
-                            }
-                          }
-                        },
+                                if (value == true) {
+                                  // Show confirmation dialog before marking as done
+                                  bool confirm =
+                                      await _showConfirmationDialog(context);
+                                  if (confirm) {
+                                    todo.isDone = value!;
+                                    todo.save();
+                                  }
+                                }
+                              },
                       ),
                       title: GestureDetector(
                         onTap: () {
@@ -404,21 +410,21 @@ class TodoListScreen extends StatelessWidget {
                       dueDateTime: selectedDate,
                       startTime: selectedStartTime != null
                           ? DateTime(
-                        DateTime.now().year,
-                        DateTime.now().month,
-                        DateTime.now().day,
-                        selectedStartTime!.hour,
-                        selectedStartTime!.minute,
-                      )
+                              DateTime.now().year,
+                              DateTime.now().month,
+                              DateTime.now().day,
+                              selectedStartTime!.hour,
+                              selectedStartTime!.minute,
+                            )
                           : null,
                       endTime: selectedEndTime != null
                           ? DateTime(
-                        DateTime.now().year,
-                        DateTime.now().month,
-                        DateTime.now().day,
-                        selectedEndTime!.hour,
-                        selectedEndTime!.minute,
-                      )
+                              DateTime.now().year,
+                              DateTime.now().month,
+                              DateTime.now().day,
+                              selectedEndTime!.hour,
+                              selectedEndTime!.minute,
+                            )
                           : null,
                     );
 
@@ -451,9 +457,11 @@ class TodoListScreen extends StatelessWidget {
                   child: Text('${todo.content}'),
                 ),
                 if (todo.dueDateTime != null)
-                  Text('Due Date: ${DateFormat.yMd().format(todo.dueDateTime!)}'),
+                  Text(
+                      'Due Date: ${DateFormat.yMd().format(todo.dueDateTime!)}'),
                 if (todo.startTime != null)
-                  Text('Start Time: ${DateFormat.jm().format(todo.startTime!)}'),
+                  Text(
+                      'Start Time: ${DateFormat.jm().format(todo.startTime!)}'),
                 if (todo.endTime != null)
                   Text('End Time: ${DateFormat.jm().format(todo.endTime!)}'),
               ],
@@ -471,7 +479,6 @@ class TodoListScreen extends StatelessWidget {
       },
     );
   }
-
 
   Future<bool> _showConfirmationDialog(BuildContext context) async {
     bool confirm = false;
