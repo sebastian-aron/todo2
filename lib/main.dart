@@ -91,17 +91,18 @@ class TodoListScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(224, 213, 59, 48),
+        backgroundColor: const Color.fromARGB(255, 49, 88, 143),
         title: Row(
           children: [
             Text(
-              'Todo List',
+              'To do List',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 20,
                 color: Colors.white,
               ),
             ),
+
             Spacer(),
             GestureDetector(
               onTap: () async {
@@ -131,88 +132,94 @@ class TodoListScreen extends StatelessWidget {
           ],
         ),
       ),
-      body: ValueListenableBuilder(
-        valueListenable: Hive.box<Todo>('todos').listenable(),
-        builder: (context, Box<Todo> box, _) {
-          if (box.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.network(
-                    'https://media.tenor.com/pFz1Q12_hXEAAAAM/cat-holding-head-cat.gif',
-                    width: 200,
-                    height: 200,
-                  ),
-                  Text(
-                    'Empty List',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                ],
-              ),
-            );
-          } else {
-            return ListView.builder(
-              itemCount: box.length,
-              itemBuilder: (context, index) {
-                final todo = box.getAt(index)!;
-                return Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8.0),
-                    color: todo.isDone
-                        ? const Color.fromARGB(224, 213, 59, 48)
-                        : null,
-                  ),
-                  margin: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-                  child: ListTile(
-                shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.0),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.lightBlue, Colors.deepPurple], // Your gradient colors here
+          ),
+        ),
+        child: ValueListenableBuilder(
+          valueListenable: Hive.box<Todo>('todos').listenable(),
+          builder: (context, Box<Todo> box, _) {
+            if (box.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.network(
+                      'https://media.tenor.com/pFz1Q12_hXEAAAAM/cat-holding-head-cat.gif',
+                      width: 200,
+                      height: 200,
+                    ),
+                    Text(
+                      'Empty List',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                  ],
                 ),
-                leading: Checkbox(
-                value: todo.isDone,
-                onChanged: todo.isDone
-                ? null  // Disable unchecking if task is already marked as done
-                    : (value) async {
-                if (value == true) {
-                // Show confirmation dialog before marking as done
-                bool confirm = await _showConfirmationDialog(context);
-                if (confirm) {
-                todo.isDone = value!;
-                todo.save();
-                }
-                }
+              );
+            } else {
+              return ListView.builder(
+                itemCount: box.length,
+                itemBuilder: (context, index) {
+                  final todo = box.getAt(index)!;
+                  return Card(
+                    margin: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+                    elevation: 4.0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      leading: Checkbox(
+                        value: todo.isDone,
+                        onChanged: todo.isDone
+                            ? null // Disable unchecking if task is already marked as done
+                            : (value) async {
+                          if (value == true) {
+                            // Show confirmation dialog before marking as done
+                            bool confirm = await _showConfirmationDialog(context);
+                            if (confirm) {
+                              todo.isDone = value!;
+                              todo.save();
+                            }
+                          }
+                        },
+                      ),
+                      title: GestureDetector(
+                        onTap: () {
+                          _showTodoDetailsReadonly(context, todo);
+                        },
+                        child: Text(
+                          todo.title,
+                          style: TextStyle(
+                            decoration: todo.isDone ? TextDecoration.lineThrough : TextDecoration.none,
+                            color: todo.isDone ? Colors.grey : Colors.black,
+                          ),
+                        ),
+                      ),
+                      trailing: IconButton(
+                        icon: Icon(
+                          Icons.delete,
+                          color: Colors.red,
+                        ),
+                        onPressed: () {
+                          box.deleteAt(index);
+                        },
+                      ),
+                    ),
+                  );
                 },
-                ),
-                title: GestureDetector(
-                onTap: () {
-                _showTodoDetailsReadonly(context, todo);
-                },
-                child: Text(
-                todo.title,
-                style: TextStyle(
-                decoration: todo.isDone
-                ? TextDecoration.lineThrough
-                    : TextDecoration.none,
-                color: todo.isDone ? Colors.grey : Colors.black,
-                ),
-                ),
-                ),
-                trailing: IconButton(
-                icon: Icon(
-                Icons.delete,
-                color: Colors.red,
-                ),
-                onPressed: () {
-                box.deleteAt(index);
-                },
-                ),
-                ),
-                );
-              },
-            );
-          }
-        },
+              );
+            }
+          },
+        ),
       ),
+
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           _addTodoDialog(context);
