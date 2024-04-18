@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/intl.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // Ensure widgets are initialized
+  WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
-  Hive.registerAdapter(TodoAdapter()); // Register the Todo adapter
-  await Hive.openBox<Todo>('todos'); // Open the box
+  Hive.registerAdapter(TodoAdapter());
+  await Hive.openBox<Todo>('todos');
   runApp(MyApp());
 }
 
@@ -17,7 +18,13 @@ class Todo extends HiveObject {
   @HiveField(1)
   late bool isDone;
 
-  Todo(this.title, {this.isDone = false});
+  @HiveField(2)
+  DateTime? dueDateTime;
+
+  @HiveField(3)
+  String content = '';
+
+  Todo(this.title, {this.isDone = false, this.dueDateTime, this.content = ''});
 }
 
 class TodoAdapter extends TypeAdapter<Todo> {
@@ -26,9 +33,22 @@ class TodoAdapter extends TypeAdapter<Todo> {
 
   @override
   Todo read(BinaryReader reader) {
+    final title = reader.readString();
+    final isDone = reader.readBool();
+
+    final hasDueDateTime = reader.readBool();
+    DateTime? dueDateTime;
+    if (hasDueDateTime) {
+      dueDateTime = DateTime.fromMillisecondsSinceEpoch(reader.readInt());
+    }
+
+    final content = reader.readString();
+
     return Todo(
-      reader.readString(),
-      isDone: reader.readBool(),
+      title,
+      isDone: isDone,
+      dueDateTime: dueDateTime,
+      content: content,
     );
   }
 
@@ -36,6 +56,14 @@ class TodoAdapter extends TypeAdapter<Todo> {
   void write(BinaryWriter writer, Todo obj) {
     writer.writeString(obj.title);
     writer.writeBool(obj.isDone);
+
+    final hasDueDateTime = obj.dueDateTime != null;
+    writer.writeBool(hasDueDateTime);
+    if (hasDueDateTime) {
+      writer.writeInt(obj.dueDateTime!.millisecondsSinceEpoch);
+    }
+
+    writer.writeString(obj.content);
   }
 }
 
@@ -50,7 +78,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Todo List',
       theme: ThemeData.from(colorScheme: customColorScheme),
-      debugShowCheckedModeBanner: false, // Remove the debug banner
+      debugShowCheckedModeBanner: false,
       home: TodoListScreen(),
     );
   }
@@ -59,30 +87,60 @@ class MyApp extends StatelessWidget {
 class TodoListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    String formattedDate = DateFormat('EEEE, MMMM d').format(DateTime.now());
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(224, 213, 59, 48),
-        // Setting app bar background color to red
-        elevation: 4, // Adding elevation to the app bar
-        title: Text(
-          'To do na toh!',
-          style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-              color: Color.fromARGB(223, 255, 255, 255)),
+        title: Row(
+          children: [
+            Text(
+              'Todo List',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                color: Colors.white,
+              ),
+            ),
+            Spacer(),
+            GestureDetector(
+              onTap: () async {
+                final pickedDate = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2101),
+                );
+                if (pickedDate != null) {
+                  // Handle new date if needed
+                }
+              },
+              child: Row(
+                children: [
+                  Text(
+                    formattedDate,
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  Icon(
+                    Icons.date_range,
+                    color: Colors.white,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
       body: ValueListenableBuilder(
         valueListenable: Hive.box<Todo>('todos').listenable(),
         builder: (context, Box<Todo> box, _) {
           if (box.isEmpty) {
-            // If the todo list is empty, display an image
             return Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Image.network(
-                    'https://media.tenor.com/pFz1Q12_hXEAAAAM/cat-holding-head-cat.gif', // Add the URL to your empty todo image
+                    'https://media.tenor.com/pFz1Q12_hXEAAAAM/cat-holding-head-cat.gif',
                     width: 200,
                     height: 200,
                   ),
@@ -94,7 +152,6 @@ class TodoListScreen extends StatelessWidget {
               ),
             );
           } else {
-            // If the todo list is not empty, display the list
             return ListView.builder(
               itemCount: box.length,
               itemBuilder: (context, index) {
@@ -103,41 +160,53 @@ class TodoListScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8.0),
                     color: todo.isDone
-                        ? Color.fromARGB(224, 213, 59, 48)
-                        : null, // Setting red accent color for completed todos
+                        ? const Color.fromARGB(224, 213, 59, 48)
+                        : null,
                   ),
                   margin: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
                   child: ListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    leading: Checkbox(
-                      value: todo.isDone,
-                      onChanged: (value) {
-                        todo.isDone = value!;
-                        todo.save(); // Save the updated todo
-                      },
-                    ),
-                    title: Text(
-                      todo.title,
-                      style: TextStyle(
-                        decoration: todo.isDone
-                            ? TextDecoration.lineThrough
-                            : TextDecoration.none,
-                        color: todo.isDone
-                            ? const Color.fromARGB(255, 158, 158, 158)
-                            : Colors.black,
-                      ),
-                    ),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete,
-                          color: Color.fromARGB(255, 255, 255,
-                              255)), // Setting delete button color to red
-                      onPressed: () {
-                        box.deleteAt(index);
-                      },
-                    ),
-                  ),
+                shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.0),
+                ),
+                leading: Checkbox(
+                value: todo.isDone,
+                onChanged: todo.isDone
+                ? null  // Disable unchecking if task is already marked as done
+                    : (value) async {
+                if (value == true) {
+                // Show confirmation dialog before marking as done
+                bool confirm = await _showConfirmationDialog(context);
+                if (confirm) {
+                todo.isDone = value!;
+                todo.save();
+                }
+                }
+                },
+                ),
+                title: GestureDetector(
+                onTap: () {
+                _showTodoDetailsReadonly(context, todo);
+                },
+                child: Text(
+                todo.title,
+                style: TextStyle(
+                decoration: todo.isDone
+                ? TextDecoration.lineThrough
+                    : TextDecoration.none,
+                color: todo.isDone ? Colors.grey : Colors.black,
+                ),
+                ),
+                ),
+                trailing: IconButton(
+                icon: Icon(
+                Icons.delete,
+                color: Colors.red,
+                ),
+                onPressed: () {
+                box.deleteAt(index);
+                },
+                ),
+                ),
                 );
               },
             );
@@ -146,7 +215,7 @@ class TodoListScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          _addTodo(context);
+          _addTodoDialog(context);
         },
         tooltip: 'Add Todo',
         child: Icon(Icons.add),
@@ -154,139 +223,177 @@ class TodoListScreen extends StatelessWidget {
     );
   }
 
-  void _addTodo(BuildContext context) {
+  void _addTodoDialog(BuildContext context) {
+    final titleController = TextEditingController();
+    final contentController = TextEditingController();
+    DateTime? selectedDate;
+    TimeOfDay? selectedTime;
+
     showDialog(
       context: context,
       builder: (context) {
-        final TextEditingController _controller = TextEditingController();
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Add Todo'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(hintText: 'Enter Title'),
+                  ),
+                  TextField(
+                    controller: contentController,
+                    decoration: InputDecoration(hintText: 'Enter Description'),
+                  ),
+                  SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () async {
+                          final pickedDate = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2101),
+                          );
+                          if (pickedDate != null) {
+                            setState(() => selectedDate = pickedDate);
+                          }
+                        },
+                        child: Text('Select Date'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final pickedTime = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.now(),
+                          );
+                          if (pickedTime != null) {
+                            setState(() => selectedTime = pickedTime);
+                          }
+                        },
+                        child: Text('Select Time'),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  if (selectedDate != null && selectedTime != null)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Date: ${selectedDate!.toLocal().toString().split(' ')[0]}',
+                          ),
+                          Text(
+                            'Time: ${selectedTime!.format(context)}',
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final title = titleController.text.trim();
+                    final content = contentController.text.trim();
+                    if (title.isNotEmpty) {
+                      DateTime? dueDateTime;
+                      if (selectedDate != null && selectedTime != null) {
+                        dueDateTime = DateTime(
+                          selectedDate!.year,
+                          selectedDate!.month,
+                          selectedDate!.day,
+                          selectedTime!.hour,
+                          selectedTime!.minute,
+                        );
+                      }
+
+                      final todoBox = Hive.box<Todo>('todos');
+                      final newTodo = Todo(
+                        title,
+                        isDone: false,
+                        dueDateTime: dueDateTime,
+                        content: content,
+                      );
+                      todoBox.add(newTodo);
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: Text('Add'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showTodoDetailsReadonly(BuildContext context, Todo todo) {
+    showDialog(
+      context: context,
+      builder: (context) {
         return AlertDialog(
-          title: Text('Add Todo'),
-          content: TextField(
-            controller: _controller,
-            decoration: InputDecoration(hintText: 'Enter todo title'),
+          title: Text(todo.title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(todo.content),
+              SizedBox(height: 16),
+              if (todo.dueDateTime != null)
+                Text(
+                  'Due date: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.dueDateTime!)}',
+                ),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
               },
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                final title = _controller.text.trim();
-                if (title.isNotEmpty) {
-                  final todoBox = Hive.box<Todo>('todos');
-                  todoBox.add(Todo(title));
-                }
-                Navigator.pop(context);
-              },
-              child: Text('Add'),
+              child: Text('Close'),
             ),
           ],
         );
       },
     );
   }
-}
 
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(
-      title: Text('Todo List'),
-    ),
-    body: ValueListenableBuilder(
-      valueListenable: Hive.box<Todo>('todos').listenable(),
-      builder: (context, Box<Todo> box, _) {
-        return ListView.builder(
-          itemCount: box.length,
-          itemBuilder: (context, index) {
-            final todo = box.getAt(index)!;
-            return Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8.0),
-                color: todo.isDone
-                    ? const Color.fromARGB(255, 141, 0, 21)
-                    : null, // Setting red accent color for completed todos
-              ),
-              margin: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-              child: ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                leading: Checkbox(
-                  value: todo.isDone,
-                  onChanged: (value) {
-                    todo.isDone = value!;
-                    todo.save(); // Save the updated todo
-                  },
-                ),
-                title: Text(
-                  todo.title,
-                  style: TextStyle(
-                    decoration: todo.isDone
-                        ? TextDecoration.lineThrough
-                        : TextDecoration.none,
-                    color: todo.isDone
-                        ? const Color.fromARGB(255, 158, 158, 158)
-                        : Colors.black,
-                  ),
-                ),
-                trailing: IconButton(
-                  icon: Icon(Icons.delete,
-                      color: Colors.red), // Setting delete button color to red
-                  onPressed: () {
-                    box.deleteAt(index);
-                  },
-                ),
-              ),
-            );
-          },
+  Future<bool> _showConfirmationDialog(BuildContext context) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Confirm'),
+          content: Text('Are you sure you want to mark this task as done?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: Text('Yes'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: Text('No'),
+            ),
+          ],
         );
       },
-    ),
-    floatingActionButton: FloatingActionButton(
-      onPressed: () {
-        _addTodo(context);
-      },
-      tooltip: 'Add Todo',
-      child: Icon(Icons.add),
-    ),
-  );
-}
-
-void _addTodo(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (context) {
-      final TextEditingController _controller = TextEditingController();
-      return AlertDialog(
-        title: Text('Add Todo'),
-        content: TextField(
-          controller: _controller,
-          decoration: InputDecoration(hintText: 'Enter todo title'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final title = _controller.text.trim();
-              if (title.isNotEmpty) {
-                final todoBox = Hive.box<Todo>('todos');
-                todoBox.add(Todo(title));
-              }
-              Navigator.pop(context);
-            },
-            child: Text('Add'),
-          ),
-        ],
-      );
-    },
-  );
+    ) ?? false;
+  }
 }
