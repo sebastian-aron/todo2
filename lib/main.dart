@@ -71,8 +71,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final customColorScheme = ColorScheme.fromSwatch(
-      primarySwatch: Colors.red,
-      accentColor: Colors.red,
+      primarySwatch: Colors.lightBlue,
+      accentColor: Colors.purple,
     );
 
     return MaterialApp(
@@ -224,7 +224,7 @@ class TodoListScreen extends StatelessWidget {
         onPressed: () {
           _addTodoDialog(context);
         },
-        tooltip: 'Add Todo',
+        tooltip: 'Add To do',
         child: Icon(Icons.add),
       ),
     );
@@ -242,7 +242,7 @@ class TodoListScreen extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: Text('Add Todo'),
+              title: Text('Add To do'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
