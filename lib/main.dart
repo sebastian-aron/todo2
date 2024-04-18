@@ -24,7 +24,23 @@ class Todo extends HiveObject {
   @HiveField(3)
   String content = '';
 
-  Todo(this.title, {this.isDone = false, this.dueDateTime, this.content = ''});
+  @HiveField(4)
+  bool isUrgent = false;
+
+  @HiveField(5)
+  DateTime? startTime; // Added startTime field
+
+  @HiveField(6)
+  DateTime? endTime; // Added endTime field
+
+  Todo(this.title, {
+    this.isDone = false,
+    this.dueDateTime,
+    this.content = '',
+    this.isUrgent = false,
+    this.startTime,
+    this.endTime,
+  });
 }
 
 class TodoAdapter extends TypeAdapter<Todo> {
@@ -35,20 +51,24 @@ class TodoAdapter extends TypeAdapter<Todo> {
   Todo read(BinaryReader reader) {
     final title = reader.readString();
     final isDone = reader.readBool();
-
     final hasDueDateTime = reader.readBool();
     DateTime? dueDateTime;
     if (hasDueDateTime) {
       dueDateTime = DateTime.fromMillisecondsSinceEpoch(reader.readInt());
     }
-
     final content = reader.readString();
+    final isUrgent = reader.readBool();
+    DateTime? startTime = reader.readBool() ? DateTime.fromMillisecondsSinceEpoch(reader.readInt()) : null; // Added reading startTime
+    DateTime? endTime = reader.readBool() ? DateTime.fromMillisecondsSinceEpoch(reader.readInt()) : null; // Added reading endTime
 
     return Todo(
       title,
       isDone: isDone,
       dueDateTime: dueDateTime,
       content: content,
+      isUrgent: isUrgent,
+      startTime: startTime,
+      endTime: endTime,
     );
   }
 
@@ -56,14 +76,21 @@ class TodoAdapter extends TypeAdapter<Todo> {
   void write(BinaryWriter writer, Todo obj) {
     writer.writeString(obj.title);
     writer.writeBool(obj.isDone);
-
     final hasDueDateTime = obj.dueDateTime != null;
     writer.writeBool(hasDueDateTime);
     if (hasDueDateTime) {
       writer.writeInt(obj.dueDateTime!.millisecondsSinceEpoch);
     }
-
     writer.writeString(obj.content);
+    writer.writeBool(obj.isUrgent);
+    writer.writeBool(obj.startTime != null); // Added writing startTime flag
+    if (obj.startTime != null) {
+      writer.writeInt(obj.startTime!.millisecondsSinceEpoch);
+    }
+    writer.writeBool(obj.endTime != null); // Added writing endTime flag
+    if (obj.endTime != null) {
+      writer.writeInt(obj.endTime!.millisecondsSinceEpoch);
+    }
   }
 }
 
@@ -102,7 +129,6 @@ class TodoListScreen extends StatelessWidget {
                 color: Colors.white,
               ),
             ),
-
             Spacer(),
             GestureDetector(
               onTap: () async {
@@ -137,7 +163,10 @@ class TodoListScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.lightBlue, Colors.deepPurple], // Your gradient colors here
+            colors: [
+              Colors.lightBlue,
+              Colors.deepPurple,
+            ],
           ),
         ),
         child: ValueListenableBuilder(
@@ -166,11 +195,15 @@ class TodoListScreen extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final todo = box.getAt(index)!;
                   return Card(
-                    margin: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+                    margin: EdgeInsets.symmetric(
+                      vertical: 4.0,
+                      horizontal: 8.0,
+                    ),
                     elevation: 4.0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8.0),
                     ),
+                    color: todo.isUrgent ? Colors.lightBlue[100] : Colors.white,
                     child: ListTile(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8.0),
@@ -178,7 +211,7 @@ class TodoListScreen extends StatelessWidget {
                       leading: Checkbox(
                         value: todo.isDone,
                         onChanged: todo.isDone
-                            ? null // Disable unchecking if task is already marked as done
+                            ? null
                             : (value) async {
                           if (value == true) {
                             // Show confirmation dialog before marking as done
@@ -197,7 +230,9 @@ class TodoListScreen extends StatelessWidget {
                         child: Text(
                           todo.title,
                           style: TextStyle(
-                            decoration: todo.isDone ? TextDecoration.lineThrough : TextDecoration.none,
+                            decoration: todo.isDone
+                                ? TextDecoration.lineThrough
+                                : TextDecoration.none,
                             color: todo.isDone ? Colors.grey : Colors.black,
                           ),
                         ),
@@ -219,7 +254,6 @@ class TodoListScreen extends StatelessWidget {
           },
         ),
       ),
-
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           _addTodoDialog(context);
@@ -234,7 +268,9 @@ class TodoListScreen extends StatelessWidget {
     final titleController = TextEditingController();
     final contentController = TextEditingController();
     DateTime? selectedDate;
-    TimeOfDay? selectedTime;
+    TimeOfDay? selectedStartTime;
+    TimeOfDay? selectedEndTime;
+    bool isUrgent = false;
 
     showDialog(
       context: context,
@@ -243,22 +279,50 @@ class TodoListScreen extends StatelessWidget {
           builder: (context, setState) {
             return AlertDialog(
               title: Text('Add Todo'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: InputDecoration(hintText: 'Enter Title'),
-                  ),
-                  TextField(
-                    controller: contentController,
-                    decoration: InputDecoration(hintText: 'Enter Description'),
-                  ),
-                  SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      ElevatedButton(
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: TextField(
+                        controller: titleController,
+                        decoration: InputDecoration(
+                          labelText: 'Title',
+                          hintText: 'Enter Title',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.all(12),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: TextField(
+                        controller: contentController,
+                        decoration: InputDecoration(
+                          labelText: 'Content',
+                          hintText: 'Enter Content',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.all(12),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: CheckboxListTile(
+                        title: Text('Urgent'),
+                        value: isUrgent,
+                        onChanged: (bool? newValue) {
+                          setState(() {
+                            isUrgent = newValue!;
+                          });
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: TextButton(
                         onPressed: () async {
                           final pickedDate = await showDatePicker(
                             context: context,
@@ -267,78 +331,101 @@ class TodoListScreen extends StatelessWidget {
                             lastDate: DateTime(2101),
                           );
                           if (pickedDate != null) {
-                            setState(() => selectedDate = pickedDate);
+                            setState(() {
+                              selectedDate = pickedDate;
+                            });
                           }
                         },
-                        child: Text('Select Date'),
+                        child: Text(
+                          selectedDate != null
+                              ? 'Due Date: ${DateFormat.yMd().format(selectedDate!)}'
+                              : 'Set Due Date',
+                        ),
                       ),
-                      ElevatedButton(
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: TextButton(
                         onPressed: () async {
-                          final pickedTime = await showTimePicker(
+                          final pickedStartTime = await showTimePicker(
                             context: context,
                             initialTime: TimeOfDay.now(),
                           );
-                          if (pickedTime != null) {
-                            setState(() => selectedTime = pickedTime);
+                          if (pickedStartTime != null) {
+                            setState(() {
+                              selectedStartTime = pickedStartTime;
+                            });
                           }
                         },
-                        child: Text('Select Time'),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  if (selectedDate != null && selectedTime != null)
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Date: ${selectedDate!.toLocal().toString().split(' ')[0]}',
-                          ),
-                          Text(
-                            'Time: ${selectedTime!.format(context)}',
-                          ),
-                        ],
+                        child: Text(
+                          selectedStartTime != null
+                              ? 'Start Time: ${selectedStartTime!.format(context)}'
+                              : 'Set Start Time',
+                        ),
                       ),
                     ),
-                ],
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: TextButton(
+                        onPressed: () async {
+                          final pickedEndTime = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay.now(),
+                          );
+                          if (pickedEndTime != null) {
+                            setState(() {
+                              selectedEndTime = pickedEndTime;
+                            });
+                          }
+                        },
+                        child: Text(
+                          selectedEndTime != null
+                              ? 'End Time: ${selectedEndTime!.format(context)}'
+                              : 'Set End Time',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
                   onPressed: () {
-                    Navigator.pop(context);
+                    Navigator.of(context).pop();
                   },
                   child: Text('Cancel'),
                 ),
-                TextButton(
+                ElevatedButton(
                   onPressed: () {
-                    final title = titleController.text.trim();
-                    final content = contentController.text.trim();
-                    if (title.isNotEmpty) {
-                      DateTime? dueDateTime;
-                      if (selectedDate != null && selectedTime != null) {
-                        dueDateTime = DateTime(
-                          selectedDate!.year,
-                          selectedDate!.month,
-                          selectedDate!.day,
-                          selectedTime!.hour,
-                          selectedTime!.minute,
-                        );
-                      }
+                    final newTodo = Todo(
+                      titleController.text,
+                      content: contentController.text,
+                      isUrgent: isUrgent,
+                      dueDateTime: selectedDate,
+                      startTime: selectedStartTime != null
+                          ? DateTime(
+                        DateTime.now().year,
+                        DateTime.now().month,
+                        DateTime.now().day,
+                        selectedStartTime!.hour,
+                        selectedStartTime!.minute,
+                      )
+                          : null,
+                      endTime: selectedEndTime != null
+                          ? DateTime(
+                        DateTime.now().year,
+                        DateTime.now().month,
+                        DateTime.now().day,
+                        selectedEndTime!.hour,
+                        selectedEndTime!.minute,
+                      )
+                          : null,
+                    );
 
-                      final todoBox = Hive.box<Todo>('todos');
-                      final newTodo = Todo(
-                        title,
-                        isDone: false,
-                        dueDateTime: dueDateTime,
-                        content: content,
-                      );
-                      todoBox.add(newTodo);
-                      Navigator.pop(context);
-                    }
+                    Hive.box<Todo>('todos').add(newTodo);
+                    Navigator.of(context).pop();
                   },
-                  child: Text('Add'),
+                  child: Text('Add Todo'),
                 ),
               ],
             );
@@ -354,21 +441,28 @@ class TodoListScreen extends StatelessWidget {
       builder: (context) {
         return AlertDialog(
           title: Text(todo.title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(todo.content),
-              SizedBox(height: 16),
-              if (todo.dueDateTime != null)
-                Text(
-                  'Due date: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.dueDateTime!)}',
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Add padding below the content
+                Padding(
+                  padding: EdgeInsets.only(bottom: 8.0),
+                  child: Text('${todo.content}'),
                 ),
-            ],
+                if (todo.dueDateTime != null)
+                  Text('Due Date: ${DateFormat.yMd().format(todo.dueDateTime!)}'),
+                if (todo.startTime != null)
+                  Text('Start Time: ${DateFormat.jm().format(todo.startTime!)}'),
+                if (todo.endTime != null)
+                  Text('End Time: ${DateFormat.jm().format(todo.endTime!)}'),
+              ],
+            ),
           ),
           actions: [
-            TextButton(
+            ElevatedButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.of(context).pop();
               },
               child: Text('Close'),
             ),
@@ -378,29 +472,33 @@ class TodoListScreen extends StatelessWidget {
     );
   }
 
+
   Future<bool> _showConfirmationDialog(BuildContext context) async {
-    return await showDialog<bool>(
+    bool confirm = false;
+    await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Confirm'),
-          content: Text('Are you sure you want to mark this task as done?'),
+          title: Text('Confirmation'),
+          content: Text('Are you sure you want to mark this todo as done?'),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context, true);
+                Navigator.of(context).pop();
               },
-              child: Text('Yes'),
+              child: Text('Cancel'),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () {
-                Navigator.pop(context, false);
+                confirm = true;
+                Navigator.of(context).pop();
               },
-              child: Text('No'),
+              child: Text('Confirm'),
             ),
           ],
         );
       },
-    ) ?? false;
+    );
+    return confirm;
   }
 }
