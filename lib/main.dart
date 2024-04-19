@@ -33,8 +33,7 @@ class Todo extends HiveObject {
   @HiveField(6)
   DateTime? endTime; // Added endTime field
 
-  Todo(
-    this.title, {
+  Todo(this.title, {
     this.isDone = false,
     this.dueDateTime,
     this.content = '',
@@ -59,12 +58,8 @@ class TodoAdapter extends TypeAdapter<Todo> {
     }
     final content = reader.readString();
     final isUrgent = reader.readBool();
-    DateTime? startTime = reader.readBool()
-        ? DateTime.fromMillisecondsSinceEpoch(reader.readInt())
-        : null; // Added reading startTime
-    DateTime? endTime = reader.readBool()
-        ? DateTime.fromMillisecondsSinceEpoch(reader.readInt())
-        : null; // Added reading endTime
+    DateTime? startTime = reader.readBool() ? DateTime.fromMillisecondsSinceEpoch(reader.readInt()) : null; // Added reading startTime
+    DateTime? endTime = reader.readBool() ? DateTime.fromMillisecondsSinceEpoch(reader.readInt()) : null; // Added reading endTime
 
     return Todo(
       title,
@@ -218,16 +213,15 @@ class TodoListScreen extends StatelessWidget {
                         onChanged: todo.isDone
                             ? null
                             : (value) async {
-                                if (value == true) {
-                                  // Show confirmation dialog before marking as done
-                                  bool confirm =
-                                      await _showConfirmationDialog(context);
-                                  if (confirm) {
-                                    todo.isDone = value!;
-                                    todo.save();
-                                  }
-                                }
-                              },
+                          if (value == true) {
+                            // Show confirmation dialog before marking as done
+                            bool confirm = await _showConfirmationDialog(context);
+                            if (confirm) {
+                              todo.isDone = value!;
+                              todo.save();
+                            }
+                          }
+                        },
                       ),
                       title: GestureDetector(
                         onTap: () {
@@ -248,10 +242,14 @@ class TodoListScreen extends StatelessWidget {
                           Icons.delete,
                           color: Colors.red,
                         ),
-                        onPressed: () {
-                          box.deleteAt(index);
+                        onPressed: () async {
+                          bool confirmDelete = await _showDeleteConfirmationDialog(context);
+                          if (confirmDelete) {
+                            box.deleteAt(index);
+                          }
                         },
                       ),
+
                     ),
                   );
                 },
@@ -403,33 +401,42 @@ class TodoListScreen extends StatelessWidget {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    final newTodo = Todo(
-                      titleController.text,
-                      content: contentController.text,
-                      isUrgent: isUrgent,
-                      dueDateTime: selectedDate,
-                      startTime: selectedStartTime != null
-                          ? DateTime(
-                              DateTime.now().year,
-                              DateTime.now().month,
-                              DateTime.now().day,
-                              selectedStartTime!.hour,
-                              selectedStartTime!.minute,
-                            )
-                          : null,
-                      endTime: selectedEndTime != null
-                          ? DateTime(
-                              DateTime.now().year,
-                              DateTime.now().month,
-                              DateTime.now().day,
-                              selectedEndTime!.hour,
-                              selectedEndTime!.minute,
-                            )
-                          : null,
-                    );
+                    if (titleController.text.isNotEmpty) { // Check if title is not empty
+                      final newTodo = Todo(
+                        titleController.text,
+                        content: contentController.text,
+                        isUrgent: isUrgent,
+                        dueDateTime: selectedDate,
+                        startTime: selectedStartTime != null
+                            ? DateTime(
+                          DateTime.now().year,
+                          DateTime.now().month,
+                          DateTime.now().day,
+                          selectedStartTime!.hour,
+                          selectedStartTime!.minute,
+                        )
+                            : null,
+                        endTime: selectedEndTime != null
+                            ? DateTime(
+                          DateTime.now().year,
+                          DateTime.now().month,
+                          DateTime.now().day,
+                          selectedEndTime!.hour,
+                          selectedEndTime!.minute,
+                        )
+                            : null,
+                      );
 
-                    Hive.box<Todo>('todos').add(newTodo);
-                    Navigator.of(context).pop();
+                      Hive.box<Todo>('todos').add(newTodo);
+                      Navigator.of(context).pop();
+                    } else {
+                      // Show error message or handle empty title case
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Please enter a title.'),
+                        ),
+                      );
+                    }
                   },
                   child: Text('Add Todo'),
                 ),
@@ -440,6 +447,7 @@ class TodoListScreen extends StatelessWidget {
       },
     );
   }
+
 
   void _showTodoDetailsReadonly(BuildContext context, Todo todo) {
     showDialog(
@@ -457,11 +465,9 @@ class TodoListScreen extends StatelessWidget {
                   child: Text('${todo.content}'),
                 ),
                 if (todo.dueDateTime != null)
-                  Text(
-                      'Due Date: ${DateFormat.yMd().format(todo.dueDateTime!)}'),
+                  Text('Due Date: ${DateFormat.yMd().format(todo.dueDateTime!)}'),
                 if (todo.startTime != null)
-                  Text(
-                      'Start Time: ${DateFormat.jm().format(todo.startTime!)}'),
+                  Text('Start Time: ${DateFormat.jm().format(todo.startTime!)}'),
                 if (todo.endTime != null)
                   Text('End Time: ${DateFormat.jm().format(todo.endTime!)}'),
               ],
@@ -479,6 +485,7 @@ class TodoListScreen extends StatelessWidget {
       },
     );
   }
+
 
   Future<bool> _showConfirmationDialog(BuildContext context) async {
     bool confirm = false;
@@ -508,4 +515,34 @@ class TodoListScreen extends StatelessWidget {
     );
     return confirm;
   }
+  Future<bool> _showDeleteConfirmationDialog(BuildContext context) async {
+    bool confirmDelete = false;
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Confirm Delete'),
+          content: Text('Are you sure you want to delete this todo?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                confirmDelete = false;
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                confirmDelete = true;
+                Navigator.of(context).pop();
+              },
+              child: Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmDelete;
+  }
+
 }
